@@ -19,7 +19,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // This goes after app launch but before the first viewDidLoad()
         
         // This print statement goes into our locally saved data and grabs the last saved string item in the array
-        print(NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).last! as String)
         
         return true
     }

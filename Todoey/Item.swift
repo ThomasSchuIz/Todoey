@@ -8,7 +8,9 @@
 
 import Foundation
 
-class Item {
+// Classes that are encodable & decodable (Codeable together) MUST have standard data types
+// No custom data types
+class Item: Codable {
     var title: String = ""
     var done: Bool = false
 }
