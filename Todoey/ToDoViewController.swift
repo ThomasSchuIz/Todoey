@@ -11,10 +11,19 @@ import UIKit
 class ToDoViewController: UITableViewController {
     
     var itemArray = ["One", "Two", "Three"]
+    
+    // This creates some local storage
+    let defaults = UserDefaults.standard
 
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
+        
+        // Optional chaining
+        // Retreiving data from local storage
+        if let items = defaults.array(forKey: "TodoListArray") as? [String] {
+            itemArray = items
+        }
         
         tableView.backgroundColor = UIColor.black
         
@@ -60,7 +69,12 @@ class ToDoViewController: UITableViewController {
             // When the user presses add item
             
             self.itemArray.append(textField.text!) // Adds item to the array
-            self.tableView.reloadData() // Rerenders the newly added data
+            
+            // Sets the items to Local storage
+            self.defaults.set(self.itemArray, forKey: "TodoListArray")
+            
+            // Rerenders the newly added data
+            self.tableView.reloadData()
             
             print("Success")
             
