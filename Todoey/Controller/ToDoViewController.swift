@@ -102,6 +102,10 @@ class ToDoViewController: UITableViewController {
             
         }
         
+        let cancel = UIAlertAction(title: "Cancel", style: .default) { (action) in
+            print("Cancel")
+        }
+        
         alert.addTextField { (alertTextField) in
             alertTextField.placeholder = "Create new item"
             textField = alertTextField
@@ -109,6 +113,7 @@ class ToDoViewController: UITableViewController {
         // what will happen once the user clicks the add item button on our alert
         
         alert.addAction(action)
+        alert.addAction(cancel)
         
         present(alert, animated: true, completion: nil)
         

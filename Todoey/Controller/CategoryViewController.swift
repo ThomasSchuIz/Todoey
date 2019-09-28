@@ -89,6 +89,10 @@ class CategoryViewController: UITableViewController {
             
         }
         
+        let cancel = UIAlertAction(title: "Cancel", style: .default) { (action) in
+            print("Cancel")
+        }
+        
         alert.addTextField { (alertTextField) in
             alertTextField.placeholder = "Create new category"
             textField = alertTextField
@@ -96,6 +100,7 @@ class CategoryViewController: UITableViewController {
         // what will happen once the user clicks the add Category button on our alert
         
         alert.addAction(action)
+        alert.addAction(cancel)
         
         present(alert, animated: true, completion: nil)
         
