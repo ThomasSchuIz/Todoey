@@ -13,6 +13,12 @@ class ToDoViewController: UITableViewController {
     
     var itemArray = [Item]()
     
+    var selectedCategory : Category? {
+        didSet {
+            loadData()
+        }
+    }
+    
     
     // This is how we get the data from AppDelegate
     // We go into the shared singleton
@@ -24,12 +30,11 @@ class ToDoViewController: UITableViewController {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
         
+        self.title = selectedCategory?.name
+        
         print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         
         tableView.backgroundColor = UIColor.black
-        
-        // This doesn't need a parameter because i gave loadData() a default value
-        loadData()
         
     }
     
@@ -84,14 +89,14 @@ class ToDoViewController: UITableViewController {
             let theItem = Item(context: self.context)
             theItem.title = textField.text!
             theItem.done = false
+            // We set a parentCategory from selectedCategory
+            // We do this b/c we established a relationship in the datamodel
+            theItem.parentCategory = self.selectedCategory
             self.itemArray.append(theItem) // Adds item to the array
             
             // Sets the items to Local storage
             // self.defaults.set(self.itemArray, forKey: "TodoListArray")
             self.saveData()
-            
-            // Rerenders the newly added data
-            self.tableView.reloadData()
             
             print("Success")
             
@@ -109,6 +114,8 @@ class ToDoViewController: UITableViewController {
         
     }
     
+    //MARK - Model Manipulation Methods
+    
     // MARK - Delete items
     override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         if editingStyle == .delete {
@@ -125,8 +132,6 @@ class ToDoViewController: UITableViewController {
         }
     }
     
-    //MARK - Model Manipulation Methods
-    
     func saveData() {
         do {
             // YOU ALWAYS NEED TO SAVE THE CONTEXT WHEN YOU WANT TO
@@ -140,7 +145,18 @@ class ToDoViewController: UITableViewController {
     }
     
     // = Item.fetch.. is a default value if nothing is passed
-    func loadData(with request: NSFetchRequest<Item> = Item.fetchRequest()) {
+    func loadData(with request: NSFetchRequest<Item> = Item.fetchRequest(), with predicate: NSPredicate? = nil) {
+        
+        
+        // This creates the proper search predicate to find the items of a parentCategory
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+        
+        // If the user puts in a search filter then combine the categoryPredicate with the searchPredicate, if its false then set the request.predicate to the category
+        if let additionalPredicate = predicate {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
+        } else {
+            request.predicate = categoryPredicate
+        }
         
         do {
             itemArray = try context.fetch(request)
@@ -148,7 +164,7 @@ class ToDoViewController: UITableViewController {
             print("error")
         }
         
-
+        self.tableView.reloadData()
     }
     
 }
@@ -167,20 +183,30 @@ extension ToDoViewController: UISearchBarDelegate {
         // CONTAINS checks to see if the query contains something
         // [cd] makes it case & accent insensitive
         // %@ inputs the searchBar text
+        // Adds this to the request query
         let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
         
-        // Adds this to the request query
-        request.predicate = predicate
-        
         // sorts in alphabetical order
-        let sortDescriptor = NSSortDescriptor(key: "title", ascending: true)
-        
         // Adds the sort rule to the request query
         // Its an array with only one rule
-        request.sortDescriptors = [sortDescriptor]
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
         
         // This will load the data from the request
-        self.loadData(with: request)
+        self.loadData(with: request, with: predicate)
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0 {
+            loadData()
+            
+            // This allows us to dismiss our keyboard even though there may still
+            // be networking calls happening in the background
+            // Basically handles multithreading
+            DispatchQueue.main.async {
+                // Dismisses keyboard
+                searchBar.resignFirstResponder()
+            }
+        }
     }
 }
 
