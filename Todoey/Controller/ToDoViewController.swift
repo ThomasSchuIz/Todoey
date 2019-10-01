@@ -7,53 +7,45 @@
 //
 
 import UIKit
+import RealmSwift
 
 class ToDoViewController: UITableViewController {
     
-    var itemArray = [Item]()
+    var todoItems: Results<Item>?
+    let realm = try! Realm()
     
-    // This creates some local storage
-    // FOR LOW DATA TYPE SETTINGS
-    let defaults = UserDefaults.standard
-    
-    // This creates local storage
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+    var selectedCategory : Category? {
+        didSet {
+            loadData()
+        }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
-        
-        print(dataFilePath!)
-        
-        decodeData()
-        
-        // Optional binding
-        // Retreiving data from local storage
-//        if let items = defaults.array(forKey: "TodoListArray") as? [Item] {
-//            itemArray = items
-//        }
-        
+        self.title = selectedCategory?.name ?? "Items"
         tableView.backgroundColor = UIColor.black
-        
+        loadData()
     }
     
     //MARK - Tableview Datasource Methods
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return itemArray.count
+        return todoItems?.count ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "toDoCell", for: indexPath)
         
-        let item = itemArray[indexPath.row]
-        
-        cell.textLabel?.text = item.title
-        
-        cell.textLabel?.textColor = UIColor.white
-        
-        // Ternary operator
-        cell.accessoryType = item.done == true ? .checkmark : .none
+        if let item = todoItems?[indexPath.row] {
+            cell.textLabel?.text = item.title
+            
+            cell.textLabel?.textColor = UIColor.white
+            
+            // Ternary operator
+            cell.accessoryType = item.done == true ? .checkmark : .none
+        } else {
+            cell.textLabel?.text = "No items added"
+        }
         
         return cell
     }
@@ -62,10 +54,17 @@ class ToDoViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
-        // If its true it becomes false, if its false it'll be true
-        itemArray[indexPath.row].done = !itemArray[indexPath.row].done
+        if let item = todoItems?[indexPath.row] {
+            do {
+                try realm.write {
+                    item.done = !item.done
+                }
+            } catch {
+                print("Error saving done status, \(error)")
+            }
+        }
         
-        self.encodeData()
+        tableView.reloadData()
         
         tableView.deselectRow(at: indexPath, animated: true)
     }
@@ -73,78 +72,96 @@ class ToDoViewController: UITableViewController {
     //MARK - Add new items
 
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
-        
+
         var textField = UITextField()
-        
+
         let alert = UIAlertController(title: "Add new to do", message: "", preferredStyle: .alert)
-        
+
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             // When the user presses add item
-            
-            let theItem = Item()
-            theItem.title = textField.text!
-            
-            self.itemArray.append(theItem) // Adds item to the array
-            
-            // Sets the items to Local storage
-            // self.defaults.set(self.itemArray, forKey: "TodoListArray")
-            self.encodeData()
-            
-            // Rerenders the newly added data
-            self.tableView.reloadData()
-            
-            print("Success")
+            if let currentCategory = self.selectedCategory {
+                do {
+                    try self.realm.write {
+                        let theItem = Item()
+                        theItem.title = textField.text!
+                        theItem.dateCreated = Date()
+                        
+                        // This line links the parent category to the selectedCategory
+                        // It also appends the item to the current category
+                        currentCategory.items.append(theItem)
+                        self.loadData()
+
+                    }
+                } catch {
+                    print("Error \(error)")
+                }
+            }
             
         }
-        
+
+        let cancel = UIAlertAction(title: "Cancel", style: .default) { (action) in
+        }
+
         alert.addTextField { (alertTextField) in
             alertTextField.placeholder = "Create new item"
             textField = alertTextField
         }
-        // what will happen once the user clicks the add item button on our alert
-        
+
         alert.addAction(action)
-        
+        alert.addAction(cancel)
+
         present(alert, animated: true, completion: nil)
-        
+
     }
     
     //MARK - Model Manipulation Methods
     
-    
-    // Encoding the data means turning our custom data model: Item into types that a plist can recongize (string, int, float, etc)
-    func encodeData() {
-        // Create encoder instead of using defaults
-        let encoder = PropertyListEncoder()
-        
-        do {
-            // This encodes the data from itemArray
-            let data = try encoder.encode(self.itemArray)
-            // This adds data into the dataFile path we created
-            try data.write(to: self.dataFilePath!)
-        } catch {
-            print("Error \(error)")
-        }
-        
-        self.tableView.reloadData()
-    }
-    
-    
-    // Decoding data takes the basic types and transforms it back into a custom data type, in this case Item
-    func decodeData() {
-        // Optional binding
-        if let data = try? Data(contentsOf: dataFilePath!) {
-            let decoder = PropertyListDecoder()
-            
-            do {
-                // B/c were not specifying an object, in order to refer to the type that is an array of items, we have to write .self
-                itemArray = try decoder.decode([Item].self, from: data)
-            } catch {
-                print("Fail")
+    // Delete items
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        if editingStyle == .delete {
+            if let item = todoItems?[indexPath.row] {
+                do {
+                    try realm.write {
+                        realm.delete(item)
+                    }
+                    self.tableView.deleteRows(at: [indexPath], with: .fade)
+                } catch {
+                    print("Error \(error)")
+                }
             }
-            
         }
     }
     
+    func loadData() {
+        todoItems = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
+        tableView.reloadData()
+    }
+    
+}
+
+
+// MARK - Search bar methods
+// Exension keyword is a better way in making the view controller a delegate
+// It makes things more readable & removes the ridcilous amount of Delegates on the top of the page
+extension ToDoViewController: UISearchBarDelegate {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "dateCreated", ascending: true)
+        
+        tableView.reloadData()
+    }
+
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0 {
+            loadData()
+
+            // This allows us to dismiss our keyboard even though there may still
+            // be networking calls happening in the background
+            // Basically handles multithreading
+            DispatchQueue.main.async {
+                // Dismisses keyboard
+                searchBar.resignFirstResponder()
+            }
+        }
+    }
 }
 
