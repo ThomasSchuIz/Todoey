@@ -8,6 +8,7 @@
 
 import UIKit
 import CoreData
+import RealmSwift
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -20,6 +21,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // This goes after app launch but before the first viewDidLoad()
         
         // This print statement goes into our locally saved data and grabs the last saved string item in the array
+        
+        //print(Realm.Configuration.defaultConfiguration.fileURL) // This tells us where we store realm data
+        
+        do {
+            _ = try Realm()
+        } catch {
+            print("Error")
+        }
+        
+        
+        
         
         return true
     }

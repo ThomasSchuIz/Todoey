@@ -7,19 +7,21 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class CategoryViewController: UITableViewController {
     
-    var categories = [Category]()
+    let realm = try! Realm() // This is a valid way in declaring an intro to realm
+     
+    var categories: Results<Category>?
     
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
 
     override func viewDidLoad() {
         super.viewDidLoad()
         
         loadData()
         tableView.backgroundColor = UIColor.black
+        tableView.rowHeight = 100
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -35,16 +37,16 @@ class CategoryViewController: UITableViewController {
     // MARK: - Table view data source
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        // #warning Incomplete implementation, return the number of rows
-        return categories.count
+        // Nil coalescing operator. This just says if the count does end up nil then just return 1
+        return categories?.count ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
         
-        let category = categories[indexPath.row]
+        let category = categories?[indexPath.row].name ?? "No categories added yet"
         
-        cell.textLabel?.text = category.name
+        cell.textLabel?.text = category
         
         cell.textLabel?.textColor = UIColor.white
         
@@ -63,7 +65,7 @@ class CategoryViewController: UITableViewController {
         let destinationVC = segue.destination as! ToDoViewController
         
         if let indexPath = tableView.indexPathForSelectedRow {
-            destinationVC.selectedCategory = categories[indexPath.row]
+            destinationVC.selectedCategory = categories?[indexPath.row]
         }
     }
     
@@ -74,23 +76,12 @@ class CategoryViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add Category", style: .default) { (action) in
             // When the user presses add Category
-            
-            
-            let category = Category(context: self.context)
+            let category = Category()
             category.name = textField.text!
-            
-            self.categories.append(category) // Adds Category to the array
-            
-            // Sets the Categorys to Local storage
-            // self.defaults.set(self.CategoryArray, forKey: "TodoListArray")
-            self.saveData()
-            
-            print("Success")
-            
+            self.saveData(category: category)
         }
         
         let cancel = UIAlertAction(title: "Cancel", style: .default) { (action) in
-            print("Cancel")
         }
         
         alert.addTextField { (alertTextField) in
@@ -113,24 +104,24 @@ class CategoryViewController: UITableViewController {
     // Delete Categorys
     override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         if editingStyle == .delete {
-            // This removes Category from the the context/storage
-            // This must be done first because we can't delete the cell first
-            // otherwise we couldnt find it when removing it from the UI
-            context.delete(categories[indexPath.row])
-            
-            // This removes Category from the array locally
-            categories.remove(at: indexPath.row)
-            tableView.deleteRows(at: [indexPath], with: .fade)
-            
-            self.saveData()
+            if let category = categories?[indexPath.row] {
+                do {
+                    try realm.write {
+                        realm.delete(category)
+                    }
+                    self.tableView.deleteRows(at: [indexPath], with: .fade)
+                } catch {
+                    print("Error \(error)")
+                }
+            }
         }
     }
     
-    func saveData() {
+    func saveData(category: Category) {
         do {
-            // YOU ALWAYS NEED TO SAVE THE CONTEXT WHEN YOU WANT TO
-            // CREATE, UPDATE, OR DELETE FROM THE DB
-            try self.context.save()
+            try realm.write {
+                realm.add(category)
+            }
         } catch {
             print("Error \(error)")
         }
@@ -139,15 +130,11 @@ class CategoryViewController: UITableViewController {
     }
     
     // = Category.fetch.. is a default value if nothing is passed
-    func loadData(with request: NSFetchRequest<Category> = Category.fetchRequest()) {
+    func loadData() {
         
-        do {
-            categories = try context.fetch(request)
-        } catch {
-            print("error")
-        }
+        categories = realm.objects(Category.self)
         
-        self.tableView.reloadData()
+        tableView.reloadData()
     }
 
 }
